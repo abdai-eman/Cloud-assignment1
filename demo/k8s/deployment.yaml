@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: country-lookup
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: country-lookup
+  template:
+    metadata:
+      labels:
+        app: country-lookup
+    spec:
+      containers:
+        - name: country-lookup
+          image: country-lookup:1.0
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          env:
+            - name: GEOCODING_BASE_URL
+              value: http://geocoding-gateway:8080
+            - name: GEOCODING_USER_AGENT
+              value: CountryLookupStudentAssignment/1.0
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: country-lookup
+spec:
+  selector:
+    app: country-lookup
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: ClusterIP
