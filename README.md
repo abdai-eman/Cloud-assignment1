@@ -41,13 +41,13 @@ Missing, blank, nonnumeric, or out-of-range coordinates return **400 Bad Request
 Build the application:
 
 ```bash
-mvn clean package
+mvn -f demo/pom.xml clean package
 ```
 
 Start the application:
 
 ```bash
-mvn spring-boot:run
+mvn -f demo/pom.xml spring-boot:run
 ```
 
 ### Access the Service
