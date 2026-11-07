@@ -1,46 +1,71 @@
-# Cloud Computing Assignment1: Country Lookup REST Service
+# Cloud-Based Applications Assignment 1: Country Lookup REST Service
 
-This project implements a cloud-native reverse geocoding REST web service built with **Spring Boot**, containerized using an efficient **multi-stage Dockerfile**, and deployed onto a local **Kubernetes (Minikube)** cluster with multiple replicas.
+For this assignment, I developed a Spring Boot REST service that returns the country and country code for a given latitude and longitude. I also created a multi-stage Dockerfile and deployed the application in Minikube with two replicas.
 
----
+I worked around my laptop’s locked BIOS settings by using GitHub Codespaces to run Docker and Minikube and access the service through a forwarded port.
 
-## Project Structure & Deliverables
-* **Part 1:** Spring Boot REST Service validating coordinates and querying the OpenStreetMap Nominatim API.
-* **Part 2:** Multi-stage `Dockerfile` creating an optimized runtime image using Eclipse Temurin JDK and Alpine JRE.
-* **Part 3:** Minikube Kubernetes Deployment (`deployment.yaml`) configured with **2 replicas** and a ClusterIP Service.
-* **Screencast Video:** 
+## Deliverables
 
----
+- Spring Boot source code and Maven build file.
+- Multi-stage `Dockerfile`.
+- Kubernetes manifest: `deployment.yaml`.
+- README in Markdown and PDF.
+- Unlisted YouTube video link:https://youtu.be/3M4Fi0_HHJo
 
-## 1. Spring Boot REST Service (Part 1)
+## Prerequisites
 
-### Functionality & Validation
-The service exposes a single endpoint at `/api/country` which takes `latitude` and `longitude` query parameters.
-* **Input Validation:** 
-  * Latitude must be a numeric value between `-90` and `90`.
-  * Longitude must be a numeric value between `-180` and `180`.
-  * Missing, blank, or out-of-range coordinates return an HTTP `400 Bad Request`.
-* **External API Integration:** Queries the OpenStreetMap Nominatim API via Spring `WebClient`. Returns HTTP `502 Bad Gateway` if the external API fails or yields unusable data.
+The following tools are needed:
 
-### Build and Run Locally (Maven)
-To compile and run the application locally from your terminal:
+- Java 17 and Maven.
+- Docker.
+- Minikube and kubectl.
+- Internet access for the OpenStreetMap Nominatim API.
+
+Run the commands below from the project root folder. Make sure port 8080 is available. Stop any locally running application or Docker container using that port before starting Kubernetes port forwarding.
+
+## Part 1: Spring Boot REST Service
+
+### How It Works
+
+The endpoint `/api/country` accepts two query parameters:
+
+- `latitude`: a number between -90 and 90, inclusive.
+- `longitude`: a number between -180 and 180, inclusive.
+
+The application uses Spring `WebClient` to request country information from the OpenStreetMap Nominatim API.
+
+Missing, blank, nonnumeric, or out-of-range coordinates return **400 Bad Request**. If the external API fails or returns unusable data, the service returns **502 Bad Gateway**.
+
+### Build and Run
+
+Build the application:
 
 ```bash
-# Clean and package the application jar
 mvn clean package
+```
 
-# Run the Spring Boot application
+Start the application:
+
+```bash
 mvn spring-boot:run
 ```
 
-### Testing the Endpoint
-Once the application starts, you can test it locally using `curl`:
+### Access the Service
+
+Open this URL in a browser:
+
+```text
+http://localhost:8080/api/country?latitude=45.0&longitude=9.0
+```
+
+Or use curl:
 
 ```bash
 curl "http://localhost:8080/api/country?latitude=45.0&longitude=9.0"
 ```
 
-**Expected JSON Response:**
+Expected response:
+
 ```json
 {
   "country": "Italy",
@@ -49,71 +74,175 @@ curl "http://localhost:8080/api/country?latitude=45.0&longitude=9.0"
 }
 ```
 
----
+In GitHub Codespaces, open port 8080 from the **Ports** tab and append `/api/country?latitude=45.0&longitude=9.0` to the forwarded URL.
 
-## 2. Multi-Stage Dockerfile (Part 2)
+### Check Invalid Inputs
 
-The project uses a multi-stage build: the first stage builds the project with Maven and Eclipse Temurin 17, while the second stage packages only the compiled artifact into a lightweight Alpine JRE image.
+These requests should return HTTP 400.
 
-### Build and Run with Docker
-Run the following commands from the root directory:
+Missing latitude:
 
 ```bash
-# 1. Build the multi-stage Docker image
-docker build -t geolocator-service:latest -f Dockerfile .
-
-# 2. Run the Docker container locally
-docker run -p 8080:8080 geolocator-service:latest
+curl -i "http://localhost:8080/api/country?longitude=9.0"
 ```
 
-### Docker Image Size
-To check the optimized size of the final image, run:
+Latitude outside the allowed range:
+
+```bash
+curl -i "http://localhost:8080/api/country?latitude=91&longitude=9.0"
+```
+
+Longitude outside the allowed range:
+
+```bash
+curl -i "http://localhost:8080/api/country?latitude=45.0&longitude=181"
+```
+
+Nonnumeric latitude:
+
+```bash
+curl -i "http://localhost:8080/api/country?latitude=abc&longitude=9.0"
+```
+
+Blank latitude:
+
+```bash
+curl -i "http://localhost:8080/api/country?latitude=&longitude=9.0"
+```
+
+## Part 2: Docker
+
+The Dockerfile uses two stages. The first stage builds the application with Maven and Eclipse Temurin 17. The second stage runs the compiled application using an Alpine JRE, without including Maven or the source code.
+
+### Build the Image
+
+```bash
+docker build -t geolocator-service:latest -f Dockerfile .
+```
+
+### Run the Container
+
+```bash
+docker run --rm -p 8080:8080 geolocator-service:latest
+```
+
+The service can then be accessed using the same URL shown in Part 1.
+
+Press **Ctrl+C** to stop the container before using port 8080 for Kubernetes port forwarding.
+
+### Image Size
+
+I checked the image size with:
+
 ```bash
 docker images geolocator-service:latest
 ```
-*(The final image size is optimized to approximately **~160MB**).*
 
----
+Docker reported:
 
-## 3. Kubernetes / Minikube Deployment (Part 3)
+- **Disk usage:** 338 MB.
+- **Content size:** 108 MB.
 
-The application is deployed to a local Kubernetes cluster using Minikube with **2 replicas** configured in `deployment.yaml`.
+## Part 3: Kubernetes with Minikube
 
-### Step-by-Step Deployment Instructions
+The `deployment.yaml` file defines a Deployment with **two replicas** and a ClusterIP Service.
 
-1. **Start Minikube:**
-   ```bash
-   minikube start --driver=docker
-   ```
+### 1. Start Minikube
 
-2. **Load the Docker Image into Minikube:**
-   ```bash
-   minikube image load geolocator-service:latest
-   ```
+```bash
+minikube start --driver=docker
+```
 
-3. **Apply the Kubernetes Manifest:**
-   ```bash
-   kubectl apply -f deployment.yaml
-   ```
+### 2. Build the Image
 
-4. **Verify Replica Pods (Confirm 2 replicas are running):**
-   ```bash
-   kubectl get pods
-   ```
-   *You will see two running pods with names starting with `country-lookup-...`.*
+If the image has not already been built:
 
-5. **Expose and Access via Port Forwarding:**
-   ```bash
-   kubectl port-forward svc/country-lookup 8080:8080
-   ```
+```bash
+docker build -t geolocator-service:latest -f Dockerfile .
+```
 
-6. **Test the Service:**
-   Open a separate terminal window and run:
-   ```bash
-   curl "http://localhost:8080/api/country?latitude=45.0&longitude=9.0"
-   ```
+### 3. Load the Image into Minikube
 
----
+```bash
+minikube image load geolocator-service:latest
+```
 
-AI assistance was used to help prepare the implementation, tests and documentation. Review the code and follow the course's disclosure rules before submitting.
----
+### 4. Apply the Manifest
+
+```bash
+kubectl apply -f deployment.yaml
+```
+
+### 5. Wait for the Deployment
+
+```bash
+kubectl rollout status deployment/country-lookup --timeout=180s
+```
+
+Check the pods:
+
+```bash
+kubectl get pods
+```
+
+Both application pods should show **1/1** under `READY` and **Running** under `STATUS`.
+
+### 6. Start Port Forwarding
+
+```bash
+kubectl port-forward svc/country-lookup 8080:8080
+```
+
+Leave this terminal running.
+
+### 7. Open the Service in a Browser
+
+```text
+http://localhost:8080/api/country?latitude=45.0&longitude=9.0
+```
+
+In GitHub Codespaces, select **Ports → 8080 → Open in Browser**, then append `/api/country?latitude=45.0&longitude=9.0` to the forwarded URL.
+
+The response should contain `Italy` and `IT`.
+
+The service can also be checked from a separate terminal:
+
+```bash
+curl "http://localhost:8080/api/country?latitude=45.0&longitude=9.0"
+```
+
+### Updating the Application
+
+After rebuilding the Docker image, run:
+
+```bash
+minikube image load geolocator-service:latest
+kubectl rollout restart deployment/country-lookup
+kubectl rollout status deployment/country-lookup --timeout=180s
+kubectl get pods
+```
+
+After the rollout finishes, stop any existing port forwarding with **Ctrl+C** and start it again:
+
+```bash
+kubectl port-forward svc/country-lookup 8080:8080
+```
+
+## Working Status and Limitations
+
+I successfully started Minikube, built the Docker image, loaded it into the cluster, applied the Kubernetes manifest, and completed the deployment rollout. Both application pods showed **1/1 Running**. I also accessed the service in a browser and received the response containing **Italy** and **IT**.
+
+The application needs an internet connection and depends on the external Nominatim API. Port forwarding must remain running while accessing the Kubernetes service.
+
+The successful browser request confirms that the normal lookup works. The screencast does not demonstrate every validation or external API error case.
+
+## Screencast
+
+The video shows Minikube startup, the Docker image build, loading the image into Minikube, applying the Kubernetes manifest, restarting the deployment, checking two running replicas, and accessing the service in a browser.
+
+Unlisted YouTube video link:https://youtu.be/3M4Fi0_HHJo
+
+
+## AI Assistance
+
+I used AI assistance to help with the implementation, answer questions, and documentation.
